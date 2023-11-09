@@ -8,8 +8,10 @@ from openai import OpenAI
 logger = getLogger(__name__)
 
 
-SYSTEM_PROMPT = """
-You are a software developer. You are given a set of reference files and specification files. Your task is to generate code that satisfies the specification.
+DEFAULT_SYSTEM_PROMPT = """
+- You are a software developer. You are given a set of reference files and specification files. Your task is to generate code that satisfies the specification.
+- Output the complete program code. Your output will be saved as a file. Therefore, never add any extra comments or code fences.
+- Never omit it. If the maximum number of tokens is exceeded, the rest of the sequence will be called, so do not worry about it and write them in order from the beginning without omission.
 """.strip()
 
 
@@ -27,6 +29,7 @@ def scaffold_code(
         ref_files: Reference files.
         options: Options.
             model_name: Model name (default: gpt-4-1106-preview).
+            system_prompt: System prompt (default: DEFAULT_SYSTEM_PROMPT).
 
     Returns:
         True if successful, False otherwise.
@@ -40,24 +43,31 @@ def scaffold_code(
 
     options = options or {}
     model_name = options.get("model_name", "gpt-4-1106-preview")
+    system_prompt = options.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
 
     client = OpenAI()
     content = ""
     while True:
         response = client.chat.completions.create(
             model=model_name,
+            temperature=0.0,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 *inputs,
             ],
         )
-        res0 = response["choices"][0]
-        content += res0["message"]["content"]
-        finish_reason = res0["finish_reason"]
+        res0 = response.choices[0]
+        content += res0.message.content
+        finish_reason = res0.finish_reason
+
+        # output response.usage
+        logger.info("response.usage: %s", response.usage)
+
         if finish_reason == "stop":
             break
         elif finish_reason == "length":
-            inputs.append(res0["message"])
+            inputs.append({"role": "assistant", "content": res0.message.content})
+            logger.info("Continuing conversation")
         else:
             logger.error("Unexpected finish reason: %s", finish_reason)
             raise RuntimeError(f"Unexpected finish reason: {finish_reason}")
@@ -68,7 +78,9 @@ def scaffold_code(
     return True
 
 
-def create_inputs(spec_texts: list[str], ref_texts: dict[str, str]) -> list[dict]:
+def create_inputs(
+    spec_texts: list[str] | None, ref_texts: dict[str, str]
+) -> list[dict]:
     """create messages for chat.completions.create
 
     :param spec_texts:
@@ -76,7 +88,7 @@ def create_inputs(spec_texts: list[str], ref_texts: dict[str, str]) -> list[dict
     :return: list of messages: {"role": "user", "content": "..."}
     """
     inputs = []
-    for spec_text in spec_texts:
+    for spec_text in spec_texts or []:
         inputs.append(
             {"role": "user", "content": f"==== Instruction ====\n\n{spec_text}"}
         )

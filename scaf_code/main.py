@@ -19,39 +19,7 @@ from pathlib import Path
 from scaf_code.scaffold_code import scaffold_code
 
 
-def main(args: list[str]) -> None:
-    """Main entry point for scaf_code.
-
-    required:
-        OPENAI_API_KEY environment variable must be set.
-
-    Args:
-        args: Command line arguments.
-    """
-    args = parse_args(args)
-    logging.basicConfig(level=args.log_level)
-    logging.debug("Starting scaf_code")
-    logging.debug("Arguments: %s", args)
-
-    # check if OPENAI_API_KEY environment variable is set
-    if "OPENAI_API_KEY" not in os.environ:
-        logging.error("OPENAI_API_KEY environment variable must be set")
-        raise EnvironmentError("OPENAI_API_KEY environment variable must be set")
-
-    # Compare this snippet from scaf_code/scaffold_code.py:
-    options = {"model_name": args.model_name}
-    scaffold_code(args.spec, args.out, args.ref, options)
-
-
 def parse_args(args: list[str]) -> argparse.Namespace:
-    """Parse command line arguments.
-
-    Args:
-        args: Command line arguments.
-
-    Returns:
-        Parsed command line arguments.
-    """
     parser = argparse.ArgumentParser(
         description="scaf_code is a tool for generating code from reference and specification files by Large Language Models."
     )
@@ -93,11 +61,54 @@ def parse_args(args: list[str]) -> argparse.Namespace:
         default="gpt-4-1106-preview",
         help="Model name.",
     )
+    # --system-prompt
+    parser.add_argument(
+        "--system-prompt",
+        dest="system_prompt",
+        type=Path,
+        default="",
+        help="System prompt.",
+    )
 
     return parser.parse_args(args)
+
+
+def main(args: list[str]) -> bool:
+    """Main entry point for scaf_code.
+
+    required:
+        OPENAI_API_KEY environment variable must be set.
+
+    Args:
+        args: Command line arguments.
+    """
+    args = parse_args(args)
+    logging.basicConfig(level=args.log_level)
+    logging.debug("Starting scaf_code")
+    logging.debug("Arguments: %s", args)
+
+    # check if OPENAI_API_KEY environment variable is set
+    if "OPENAI_API_KEY" not in os.environ:
+        logging.error("OPENAI_API_KEY environment variable must be set")
+        raise EnvironmentError("OPENAI_API_KEY environment variable must be set")
+
+    # check if ref or spec are set
+    if not args.ref and not args.spec:
+        print("Please specify either --ref or --spec")
+        return False
+
+    system_prompt = None
+    if args.system_prompt:
+        system_prompt = args.system_prompt.read_text()
+
+    # Compare this snippet from scaf_code/scaffold_code.py:
+    options = {"model_name": args.model_name, "system_prompt": system_prompt}
+    scaffold_code(args.spec, args.out, args.ref, options)
+
+    return True
 
 
 if __name__ == "__main__":
     import sys
 
-    main(sys.argv[1:])
+    sys.exit(0 if main(sys.argv[1:]) else 1)
