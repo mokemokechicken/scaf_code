@@ -23,6 +23,7 @@ import os
 import sys
 from pathlib import Path
 
+import scaf_code
 from scaf_code.scaffold_code import scaffold_code
 
 
@@ -81,6 +82,13 @@ def parse_args(args: list[str]) -> argparse.Namespace:
         dest="system_prompt",
         type=Path,
         help="path to system prompt file.",
+    )
+
+    # --version
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"scaf_code {scaf_code.__version__}",
     )
 
     return parser.parse_args(args)
