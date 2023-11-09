@@ -3,7 +3,6 @@ from __future__ import annotations
 from logging import getLogger
 from pathlib import Path
 
-import openai
 from openai import OpenAI, Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
