@@ -14,6 +14,6 @@ pip install scaf_code
 
 ```bash
 export OPENAI_API_KEY=<your_openai_api_key>
-scaf_code --ref_file <ref_file> --spec_file <spec_file> --output_dir <output_dir>
+scaf_code --ref <ref_file> --spec <spec_text> --out <output_path>
 ```
 

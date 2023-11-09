@@ -8,9 +8,12 @@ license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.7.1"
-openai = "^1.1.2"
+openai = "^1.2.0"
 
 [project.scripts]
+scaf_code = "scaf_code.cli:main"
+
+[tool.poetry.scripts]
 scaf_code = "scaf_code.cli:main"
 
 [build-system]
