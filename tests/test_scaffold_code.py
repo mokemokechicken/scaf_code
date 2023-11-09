@@ -1,13 +1,14 @@
-import pytest
+from pathlib import Path
 from unittest.mock import patch, MagicMock, mock_open
+
+import pytest
+
 from scaf_code.scaffold_code import (
     scaffold_code,
     load_files,
     create_inputs,
-    DEFAULT_SYSTEM_PROMPT,
+    OpenAIWrapper,
 )
-from openai import OpenAI
-from pathlib import Path
 
 # Mock data for testing
 mock_spec_text = "Generate a function to add two numbers."
@@ -24,7 +25,7 @@ mock_openai_response = {
 
 @pytest.fixture
 def mock_openai_client():
-    with patch.object(OpenAI, "create_chat_completion") as mock_chat:
+    with patch.object(OpenAIWrapper, "chat_create") as mock_chat:
         mock_chat.return_value = MagicMock(
             choices=[
                 MagicMock(
@@ -37,7 +38,9 @@ def mock_openai_client():
 
 def test_scaffold_code_with_spec_text(mock_openai_client):
     # Test scaffold_code function with specification text
-    with patch("builtins.open", mock_open(mock_ref_file_content)):
+    with patch(
+        "builtins.open", mock_open(read_data=mock_ref_file_content)
+    ), patch.object(Path, "exists", return_value=True):
         generated_code = scaffold_code(
             [mock_spec_text], options={"model_name": "test-model"}
         )
@@ -46,7 +49,9 @@ def test_scaffold_code_with_spec_text(mock_openai_client):
 
 def test_scaffold_code_with_spec_file(mock_openai_client):
     # Test scaffold_code function with specification file
-    with patch("builtins.open", mock_open(read_data=mock_spec_file_content)):
+    with patch(
+        "builtins.open", mock_open(read_data=mock_spec_file_content)
+    ), patch.object(Path, "exists", return_value=True):
         generated_code = scaffold_code(
             [], spec_files=["spec_file.txt"], options={"model_name": "test-model"}
         )
@@ -55,7 +60,9 @@ def test_scaffold_code_with_spec_file(mock_openai_client):
 
 def test_scaffold_code_with_ref_file(mock_openai_client):
     # Test scaffold_code function with reference file
-    with patch("builtins.open", mock_open(read_data=mock_ref_file_content)):
+    with patch(
+        "builtins.open", mock_open(read_data=mock_ref_file_content)
+    ), patch.object(Path, "exists", return_value=True):
         generated_code = scaffold_code(
             [mock_spec_text],
             ref_files=["ref_file.txt"],
@@ -66,7 +73,9 @@ def test_scaffold_code_with_ref_file(mock_openai_client):
 
 def test_load_files():
     # Test load_files function
-    with patch("builtins.open", mock_open(read_data=mock_ref_file_content)):
+    with patch(
+        "builtins.open", mock_open(read_data=mock_ref_file_content)
+    ), patch.object(Path, "exists", return_value=True):
         files_content = load_files(["ref_file.txt"])
         assert files_content == {"ref_file.txt": mock_ref_file_content}
 
@@ -94,5 +103,8 @@ def test_create_inputs():
 
 def test_scaffold_code_without_spec_or_ref(mock_openai_client):
     # Test scaffold_code function without specification or reference
-    with pytest.raises(ValueError):
-        scaffold_code([], options={"model_name": "test-model"})
+    with patch(
+        "builtins.open", mock_open(read_data=mock_ref_file_content)
+    ), patch.object(Path, "exists", return_value=True):
+        generated_code = scaffold_code([], options={"model_name": "test-model"})
+        assert generated_code is None

@@ -3,7 +3,9 @@ from __future__ import annotations
 from logging import getLogger
 from pathlib import Path
 
-from openai import OpenAI
+import openai
+from openai import OpenAI, Stream
+from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 logger = getLogger(__name__)
 
@@ -51,10 +53,10 @@ def scaffold_code(
     model_name = options.get("model_name", "gpt-4-1106-preview")
     system_prompt = options.get("system_prompt") or DEFAULT_SYSTEM_PROMPT
 
-    client = OpenAI()
+    client = OpenAIWrapper()
     content = ""
     while True:
-        response = client.chat.completions.create(
+        response = client.chat_create(
             model=model_name,
             temperature=0.0,
             messages=[
@@ -79,6 +81,18 @@ def scaffold_code(
             raise RuntimeError(f"Unexpected finish reason: {finish_reason}")
 
     return content
+
+
+class OpenAIWrapper:
+    def __init__(self):
+        self.client = OpenAI()
+
+    def chat_create(
+        self, model, temperature, messages
+    ) -> ChatCompletion | Stream[ChatCompletionChunk]:
+        return self.client.chat.completions.create(
+            model=model, temperature=temperature, messages=messages
+        )
 
 
 def create_inputs(
