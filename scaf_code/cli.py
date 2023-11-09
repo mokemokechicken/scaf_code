@@ -67,8 +67,7 @@ def parse_args(args: list[str]) -> argparse.Namespace:
         "--system-prompt",
         dest="system_prompt",
         type=Path,
-        default="",
-        help="System prompt.",
+        help="path to system prompt file.",
     )
 
     return parser.parse_args(args)
@@ -85,8 +84,13 @@ def _main(args: list[str]) -> bool:
     """
     args = parse_args(args)
     logging.basicConfig(level=args.log_level)
-    logging.debug("Starting scaf_code")
-    logging.debug("Arguments: %s", args)
+    logging.info(f"ref: {args.ref}")
+    logging.info(f"spec: {args.spec}")
+    logging.info(f"out: {args.out}")
+    if args.model_name:
+        logging.info(f"model_name: {args.model_name}")
+    if args.system_prompt:
+        logging.info(f"system_prompt: {args.system_prompt}")
 
     # check if OPENAI_API_KEY environment variable is set
     if "OPENAI_API_KEY" not in os.environ:
@@ -98,12 +102,17 @@ def _main(args: list[str]) -> bool:
         print("Please specify either --ref or --spec")
         return False
 
-    system_prompt = None
+    print(args.ref)
+
+    options = {}
+    if args.model_name:
+        options["model_name"] = args.model_name
+
     if args.system_prompt:
-        system_prompt = args.system_prompt.read_text()
+        logging.debug("Reading system prompt from %s", args.system_prompt)
+        options["system_prompt"] = args.system_prompt.read_text()
 
     # Compare this snippet from scaf_code/scaffold_code.py:
-    options = {"model_name": args.model_name, "system_prompt": system_prompt}
     scaffold_code(args.spec, args.out, args.ref, options)
 
     return True

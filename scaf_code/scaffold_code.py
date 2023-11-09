@@ -35,6 +35,10 @@ def scaffold_code(
         True if successful, False otherwise.
     """
     logger.debug("Starting scaf_code")
+    logger.debug("spec_texts: %s", spec_texts)
+    logger.debug("out_file: %s", out_file)
+    logger.debug("ref_files: %s", ref_files)
+    logger.debug("options: %s", options)
     ref_texts: dict[str, str] = load_files(ref_files)  # file_name -> file_text
     inputs = create_inputs(spec_texts, ref_texts)
     if not inputs:
@@ -43,7 +47,7 @@ def scaffold_code(
 
     options = options or {}
     model_name = options.get("model_name", "gpt-4-1106-preview")
-    system_prompt = options.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
+    system_prompt = options.get("system_prompt") or DEFAULT_SYSTEM_PROMPT
 
     client = OpenAI()
     content = ""
