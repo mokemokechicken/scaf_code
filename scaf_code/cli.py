@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import sys
 from pathlib import Path
 
 from scaf_code.scaffold_code import scaffold_code
@@ -73,7 +74,7 @@ def parse_args(args: list[str]) -> argparse.Namespace:
     return parser.parse_args(args)
 
 
-def main(args: list[str]) -> bool:
+def _main(args: list[str]) -> bool:
     """Main entry point for scaf_code.
 
     required:
@@ -108,7 +109,9 @@ def main(args: list[str]) -> bool:
     return True
 
 
-if __name__ == "__main__":
-    import sys
+def main():
+    sys.exit(0 if _main(sys.argv[1:]) else 1)
 
-    sys.exit(0 if main(sys.argv[1:]) else 1)
+
+if __name__ == "__main__":
+    main()

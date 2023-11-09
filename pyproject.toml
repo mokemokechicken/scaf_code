@@ -10,6 +10,8 @@ license = "MIT"
 python = "^3.7.1"
 openai = "^1.1.2"
 
+[project.scripts]
+scaf_code = "scaf_code.cli:main"
 
 [build-system]
 requires = ["poetry-core"]
