@@ -1,14 +1,17 @@
 [tool.poetry]
 name = "scaf-code"
-version = "0.1.0"
+version = "0.1.2"
 description = "scaf_code is a tool for generating code from reference and specification files by Large Language Models."
 authors = ["Ken Morishita <mokemokechicken@gmail.com>"]
 readme = "README.md"
 license = "MIT"
 
+[project.urls]
+source = "https://github.com/mokemokechicken/scaf_code"
+
 [tool.poetry.dependencies]
 python = "^3.7.1"
-openai = "^1.2.0"
+openai = "^1.1.0"
 
 [project.scripts]
 scaf_code = "scaf_code.cli:main"
