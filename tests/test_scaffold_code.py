@@ -1,78 +1,98 @@
-import unittest
 import pytest
-from unittest.mock import patch, MagicMock
-from pathlib import Path
+from unittest.mock import patch, MagicMock, mock_open
 from scaf_code.scaffold_code import (
     scaffold_code,
-    create_inputs,
     load_files,
+    create_inputs,
     DEFAULT_SYSTEM_PROMPT,
 )
+from openai import OpenAI
+from pathlib import Path
 
-# Constants for testing
-SPEC_TEXTS = ["Generate a function to add two numbers."]
-SPEC_FILES = ["spec_file1.txt", "spec_file2.txt"]
-REF_FILES = ["ref_code.py", "ref_spec.txt"]
-OPTIONS = {"model_name": "gpt-4-1106-preview"}
+# Mock data for testing
+mock_spec_text = "Generate a function to add two numbers."
+mock_spec_file_content = "Specification for adding two numbers."
+mock_ref_file_content = "Reference implementation of math operations."
+mock_output_code = "def add(a, b):\n    return a + b"
 
-# Mocked content for spec and ref files
-MOCKED_SPEC_FILE_CONTENT = {
-    "spec_file1.txt": "Specification for file 1",
-    "spec_file2.txt": "Specification for file 2",
-}
-MOCKED_REF_FILE_CONTENT = {
-    "ref_code.py": "Reference code in Python",
-    "ref_spec.txt": "Reference specification text",
-}
-
-# Mocked response from OpenAI API
-MOCKED_OPENAI_RESPONSE = {
-    "choices": [
-        {
-            "message": {"content": "def add(a, b):\n    return a + b\n"},
-            "finish_reason": "stop",
-        }
-    ],
-    "usage": {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110},
+# Mock OpenAI response
+mock_openai_response = {
+    "choices": [{"message": {"content": mock_output_code}, "finish_reason": "stop"}],
+    "usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
 }
 
 
 @pytest.fixture
 def mock_openai_client():
-    with patch("scaf_code.scaffold_code.OpenAI") as mock:
-        mock.return_value.chat.completions.create.return_value = MagicMock(
-            **MOCKED_OPENAI_RESPONSE
+    with patch.object(OpenAI, "create_chat_completion") as mock_chat:
+        mock_chat.return_value = MagicMock(
+            choices=[
+                MagicMock(
+                    message=MagicMock(content=mock_output_code), finish_reason="stop"
+                )
+            ]
         )
-        yield mock.return_value
+        yield mock_chat
 
 
-@pytest.fixture
-def mock_file_io():
-    with patch("builtins.open", new_callable=unittest.mock.mock_open) as mock_file:
-        mock_file().read.side_effect = lambda: MOCKED_SPEC_FILE_CONTENT.get(
-            Path(mock_file.call_args[0][0]).name, ""
+def test_scaffold_code_with_spec_text(mock_openai_client):
+    # Test scaffold_code function with specification text
+    with patch("builtins.open", mock_open(mock_ref_file_content)):
+        generated_code = scaffold_code(
+            [mock_spec_text], options={"model_name": "test-model"}
         )
-        yield mock_file
+        assert generated_code == mock_output_code
 
 
-@pytest.fixture
-def mock_path_exists():
-    with patch("pathlib.Path.exists") as mock_exists:
-        mock_exists.return_value = True
-        yield mock_exists
+def test_scaffold_code_with_spec_file(mock_openai_client):
+    # Test scaffold_code function with specification file
+    with patch("builtins.open", mock_open(read_data=mock_spec_file_content)):
+        generated_code = scaffold_code(
+            [], spec_files=["spec_file.txt"], options={"model_name": "test-model"}
+        )
+        assert generated_code == mock_output_code
 
 
-def test_scaffold_code_with_spec_texts(
-    mock_openai_client, mock_file_io, mock_path_exists
-):
-    result = scaffold_code(SPEC_TEXTS, None, None, OPTIONS)
-    assert result == "def add(a, b):\n    return a + b\n"
-    mock_openai_client.chat.completions.create.assert_called_once()
+def test_scaffold_code_with_ref_file(mock_openai_client):
+    # Test scaffold_code function with reference file
+    with patch("builtins.open", mock_open(read_data=mock_ref_file_content)):
+        generated_code = scaffold_code(
+            [mock_spec_text],
+            ref_files=["ref_file.txt"],
+            options={"model_name": "test-model"},
+        )
+        assert generated_code == mock_output_code
 
 
-# ... (other tests remain unchanged, just add the mock_path_exists fixture to them)
+def test_load_files():
+    # Test load_files function
+    with patch("builtins.open", mock_open(read_data=mock_ref_file_content)):
+        files_content = load_files(["ref_file.txt"])
+        assert files_content == {"ref_file.txt": mock_ref_file_content}
 
 
-def test_load_files(mock_file_io, mock_path_exists):
-    texts = load_files(SPEC_FILES)
-    assert texts == MOCKED_SPEC_FILE_CONTENT
+def test_create_inputs():
+    # Test create_inputs function
+    inputs = create_inputs(
+        [mock_spec_text],
+        {"ref_file.txt": mock_ref_file_content},
+        {"spec_file.txt": mock_spec_file_content},
+    )
+    expected_inputs = [
+        {"role": "user", "content": f"==== Instruction ====\n\n{mock_spec_text}"},
+        {
+            "role": "user",
+            "content": f"==== Instruction: spec_file.txt ====\n\n{mock_spec_file_content}",
+        },
+        {
+            "role": "user",
+            "content": f"==== Reference: ref_file.txt ====\n\n{mock_ref_file_content}",
+        },
+    ]
+    assert inputs == expected_inputs
+
+
+def test_scaffold_code_without_spec_or_ref(mock_openai_client):
+    # Test scaffold_code function without specification or reference
+    with pytest.raises(ValueError):
+        scaffold_code([], options={"model_name": "test-model"})
