@@ -6,6 +6,9 @@ authors = ["Ken Morishita <mokemokechicken@gmail.com>"]
 readme = "README.md"
 license = "MIT"
 
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.3"
+
 [project.urls]
 source = "https://github.com/mokemokechicken/scaf_code"
 
