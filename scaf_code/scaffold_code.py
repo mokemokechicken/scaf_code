@@ -17,33 +17,35 @@ DEFAULT_SYSTEM_PROMPT = """
 
 def scaffold_code(
     spec_texts: list[str],
-    out_file: str,
-    ref_files: list[str] = None,
+    spec_files: list[str | Path] = None,
+    ref_files: list[str | Path] = None,
     options: dict[str, str] = None,
-) -> bool:
+) -> str | None:
     """Scaffold code.
 
     Args:
         spec_texts: Specification texts.
-        out_file: Output file.
+        spec_files: Specification files.
         ref_files: Reference files.
         options: Options.
             model_name: Model name (default: gpt-4-1106-preview).
             system_prompt: System prompt (default: DEFAULT_SYSTEM_PROMPT).
 
-    Returns:
-        True if successful, False otherwise.
+    Returns: Scaffolded code.
     """
     logger.debug("Starting scaf_code")
     logger.debug("spec_texts: %s", spec_texts)
-    logger.debug("out_file: %s", out_file)
+    logger.debug("spec_files: %s", spec_files)
     logger.debug("ref_files: %s", ref_files)
     logger.debug("options: %s", options)
+
+    #
+    spec_texts_from_files: dict[str, str] = load_files(spec_files)
     ref_texts: dict[str, str] = load_files(ref_files)  # file_name -> file_text
-    inputs = create_inputs(spec_texts, ref_texts)
+    inputs = create_inputs(spec_texts, ref_texts, spec_texts_from_files)
     if not inputs:
         logger.error("No input")
-        return False
+        return None
 
     options = options or {}
     model_name = options.get("model_name", "gpt-4-1106-preview")
@@ -76,19 +78,19 @@ def scaffold_code(
             logger.error("Unexpected finish reason: %s", finish_reason)
             raise RuntimeError(f"Unexpected finish reason: {finish_reason}")
 
-    logger.debug("Writing output to %s", out_file)
-    output_to_file(out_file, content)
-
-    return True
+    return content
 
 
 def create_inputs(
-    spec_texts: list[str] | None, ref_texts: dict[str, str]
+    spec_texts: list[str] | None,
+    ref_texts: dict[str, str],
+    spec_texts_from_files: dict[str, str],
 ) -> list[dict]:
     """create messages for chat.completions.create
 
     :param spec_texts:
-    :param ref_texts:
+    :param ref_texts: file_name -> file_text
+    :param spec_texts_from_files: file_name -> file_text
     :return: list of messages: {"role": "user", "content": "..."}
     """
     inputs = []
@@ -96,6 +98,12 @@ def create_inputs(
         inputs.append(
             {"role": "user", "content": f"==== Instruction ====\n\n{spec_text}"}
         )
+    for file, text in spec_texts_from_files.items():
+        filename = Path(file).name
+        inputs.append(
+            {"role": "user", "content": f"==== Instruction: {filename} ====\n\n{text}"}
+        )
+
     for ref_file, ref_text in ref_texts.items():
         filename = Path(ref_file).name
         inputs.append(
@@ -108,7 +116,7 @@ def create_inputs(
     return inputs
 
 
-def load_files(files: list[str] | None) -> dict[str, str]:
+def load_files(files: list[str | Path] | None) -> dict[str, str]:
     """Load files.
 
     Args:
@@ -126,23 +134,3 @@ def load_files(files: list[str] | None) -> dict[str, str]:
         with open(file, "rt") as f:
             texts[file] = f.read()
     return texts
-
-
-def output_to_file(file: str, content: str) -> None:
-    """Output to file.
-
-    Args:
-        file: File.
-        content: Content.
-    """
-    file_path = Path(file)
-    try:
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(file, "wt") as f:
-            f.write(content)
-    except Exception as e:
-        logger.error("Failed to write to file %s: %s", file, e)
-        print("==== Output ====")
-        print(content)
-        print("==== Output ====")
-        raise e

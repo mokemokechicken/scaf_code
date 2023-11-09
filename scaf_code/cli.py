@@ -6,8 +6,14 @@ About:
     This module is the main entry point for scaf_code. It contains the main function
     and the command line interface.
 
-example:
-    scaf_code --ref ref_code_file --ref ref_base_spec_file --spec spec_text --out out_file_path
+Example:
+
+ex1) specify reference and specification text
+    scaf_code --ref ref_code_file ref_base_spec_file --spec spec_text --out out_file_path
+
+ex2) specify reference and specification files
+    scaf_code --ref ref_code_file ref_base_spec_file --spec-file spec_file --out out_file_path
+
 """
 from __future__ import annotations
 
@@ -38,6 +44,13 @@ def parse_args(args: list[str]) -> argparse.Namespace:
         type=str,
         nargs="*",
         help="Specification Text.",
+    )
+    parser.add_argument(
+        "--spec-file",
+        dest="spec_file",
+        type=Path,
+        nargs="*",
+        help="Specification files.",
     )
     parser.add_argument(
         "--out",
@@ -86,6 +99,7 @@ def _main(args: list[str]) -> bool:
     logging.basicConfig(level=args.log_level)
     logging.info(f"ref: {args.ref}")
     logging.info(f"spec: {args.spec}")
+    logging.info(f"spec_file: {args.spec_file}")
     logging.info(f"out: {args.out}")
     if args.model_name:
         logging.info(f"model_name: {args.model_name}")
@@ -98,8 +112,8 @@ def _main(args: list[str]) -> bool:
         raise EnvironmentError("OPENAI_API_KEY environment variable must be set")
 
     # check if ref or spec are set
-    if not args.ref and not args.spec:
-        print("Please specify either --ref or --spec")
+    if not args.ref and not args.spec and not args.spec_file:
+        print("Please specify either --ref or --spec or --spec-file")
         return False
 
     print(args.ref)
@@ -113,9 +127,31 @@ def _main(args: list[str]) -> bool:
         options["system_prompt"] = args.system_prompt.read_text()
 
     # Compare this snippet from scaf_code/scaffold_code.py:
-    scaffold_code(args.spec, args.out, args.ref, options)
+    content = scaffold_code(args.spec, args.spec_file, args.ref, options)
+    if not content:
+        return False
+    else:
+        output_to_file(args.out, content)
+        return True
 
-    return True
+
+def output_to_file(file: str | Path, content: str) -> None:
+    """Output to file.
+
+    Args:
+        file: File.
+        content: Content.
+    """
+    file_path = Path(file)
+    try:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(file, "wt") as f:
+            f.write(content)
+    except Exception as e:
+        print("==== Output ====")
+        print(content)
+        print("==== Output ====")
+        raise e
 
 
 def main():
