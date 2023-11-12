@@ -70,7 +70,7 @@ Contributions are welcome! If you have ideas for improvements or have found a bu
 
 ## License
 
-scaf_code is released under the MIT License. See the LICENSE file for more details.
+scaf_code is released under the [MIT License](https://mokemokechicken.mit-license.org/). 
 
 ## Support
 
