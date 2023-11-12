@@ -73,7 +73,6 @@ def parse_args(args: list[str]) -> argparse.Namespace:
         "--model-name",
         dest="model_name",
         type=str,
-        default="gpt-4-1106-preview",
         help="Model name.",
     )
     # --system-prompt
@@ -123,8 +122,6 @@ def _main(args: list[str]) -> bool:
     if not args.ref and not args.spec and not args.spec_file:
         print("Please specify either --ref or --spec or --spec-file")
         return False
-
-    print(args.ref)
 
     options = {}
     if args.model_name:

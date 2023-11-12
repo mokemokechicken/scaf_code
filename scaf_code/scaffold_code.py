@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import base64
+from dataclasses import dataclass, field
 from logging import getLogger
 from pathlib import Path
+from typing import Literal
 
 from openai import OpenAI, Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
@@ -14,6 +17,10 @@ DEFAULT_SYSTEM_PROMPT = """
 - Output the complete program code. Your output will be saved as a file. Therefore, never add any extra comments or code fences.
 - Never omit it. If the maximum number of tokens is exceeded, the rest of the sequence will be called, so do not worry about it and write them in order from the beginning without omission.
 """.strip()
+
+
+NORMAL_MODEL = "gpt-4-1106-preview"
+VISION_MODEL = "gpt-4-vision-preview"
 
 
 def scaffold_code(
@@ -41,16 +48,25 @@ def scaffold_code(
     logger.debug("options: %s", options)
 
     #
-    spec_texts_from_files: dict[str, str] = load_files(spec_files)
-    ref_texts: dict[str, str] = load_files(ref_files)  # file_name -> file_text
-    inputs = create_inputs(spec_texts, ref_texts, spec_texts_from_files)
-    if not inputs:
+    spec_data_from_files: dict[str, FileData] = load_files(spec_files)
+    ref_data: dict[str, FileData] = load_files(ref_files)  # file_name -> FileData
+    chat = create_inputs(spec_texts, ref_data, spec_data_from_files)
+    if not chat.messages:
         logger.error("No input")
         return None
 
+    logger.info(f"chat has image: {chat.has_image}")
+
     options = options or {}
-    model_name = options.get("model_name", "gpt-4-1106-preview")
+    model_name = options.get(
+        "model_name", VISION_MODEL if chat.has_image else NORMAL_MODEL
+    )
+    max_tokens = None
+    if chat.has_image:
+        max_tokens = 4096
     system_prompt = options.get("system_prompt") or DEFAULT_SYSTEM_PROMPT
+
+    logger.info(f"model_name: {model_name}")
 
     client = OpenAIWrapper()
     content = ""
@@ -60,8 +76,9 @@ def scaffold_code(
             temperature=0.0,
             messages=[
                 {"role": "system", "content": system_prompt},
-                *inputs,
+                *chat.messages,
             ],
+            max_tokens=max_tokens,
         )
         res0 = response.choices[0]
         content += res0.message.content
@@ -70,13 +87,15 @@ def scaffold_code(
         # output response.usage
         logger.info("response.usage: %s", response.usage)
 
-        if finish_reason == "stop":
+        if finish_reason == "stop" or finish_reason is None:
+            # When using GPT4Vision, finish_reason is None...
             break
         elif finish_reason == "length":
-            inputs.append({"role": "assistant", "content": res0.message.content})
+            chat.messages.append({"role": "assistant", "content": res0.message.content})
             logger.info("Continuing conversation")
         else:
             logger.error("Unexpected finish reason: %s", finish_reason)
+            logger.error("response: %s", response)
             raise RuntimeError(f"Unexpected finish reason: {finish_reason}")
 
     return content
@@ -87,49 +106,42 @@ class OpenAIWrapper:
         self.client = OpenAI()
 
     def chat_create(
-        self, model, temperature, messages
+        self, model, temperature, messages, max_tokens=None
     ) -> ChatCompletion | Stream[ChatCompletionChunk]:
         return self.client.chat.completions.create(
-            model=model, temperature=temperature, messages=messages
+            model=model,
+            temperature=temperature,
+            messages=messages,
+            max_tokens=max_tokens,
         )
 
 
 def create_inputs(
     spec_texts: list[str] | None,
-    ref_texts: dict[str, str],
-    spec_texts_from_files: dict[str, str],
-) -> list[dict]:
+    ref_data: dict[str, FileData],
+    spec_data_from_files: dict[str, FileData],
+) -> ChatMessages:
     """create messages for chat.completions.create
 
     :param spec_texts:
-    :param ref_texts: file_name -> file_text
-    :param spec_texts_from_files: file_name -> file_text
+    :param ref_data: file_name -> FileData
+    :param spec_data_from_files: file_name -> FileData
     :return: list of messages: {"role": "user", "content": "..."}
     """
-    inputs = []
+    chat = ChatMessages()
     for spec_text in spec_texts or []:
-        inputs.append(
+        chat.messages.append(
             {"role": "user", "content": f"==== Instruction ====\n\n{spec_text}"}
         )
-    for file, text in spec_texts_from_files.items():
-        filename = Path(file).name
-        inputs.append(
-            {"role": "user", "content": f"==== Instruction: {filename} ====\n\n{text}"}
-        )
+    for file, file_data in spec_data_from_files.items():
+        chat.add_message(file, file_data, "Instruction")
 
-    for ref_file, ref_text in ref_texts.items():
-        filename = Path(ref_file).name
-        inputs.append(
-            {
-                "role": "user",
-                "content": f"==== Reference: {filename} ====\n\n{ref_text}",
-            }
-        )
-
-    return inputs
+    for ref_file, file_data in ref_data.items():
+        chat.add_message(ref_file, file_data, "Reference")
+    return chat
 
 
-def load_files(files: list[str | Path] | None) -> dict[str, str]:
+def load_files(files: list[str | Path] | None) -> dict[str, FileData]:
     """Load files.
 
     Args:
@@ -138,12 +150,64 @@ def load_files(files: list[str | Path] | None) -> dict[str, str]:
     Returns:
         File texts.
     """
-    texts: dict[str, str] = {}
+    texts: dict[str, FileData] = {}
     for file in files or []:
         file_path = Path(file)
         if not file_path.exists():
             logger.error("File %s does not exist", file)
             raise FileNotFoundError(f"File {file} does not exist")
-        with open(file, "rt") as f:
-            texts[file] = f.read()
+        data = file_path.read_bytes()
+        suffix = file_path.suffix
+        # simply guess data type from suffix: text/plain, image/png, image/jpeg, image/gif, image/webp, not best but enough
+        file_type = {
+            ".txt": "text/plain",
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
+        }.get(suffix, "text/plain")
+        texts[file] = FileData(file, file_type, data)
     return texts
+
+
+@dataclass
+class FileData:
+    file_name: str
+    file_type: Literal[
+        "plain/text", "image/png", "image/jpeg", "image/gif", "image/webp"
+    ]
+    data: bytes
+
+
+@dataclass
+class ChatMessages:
+    messages: list[dict] = field(default_factory=list)
+    has_image: bool = False
+
+    def add_message(self, file: str | Path, file_data: FileData, label: str):
+        filename = Path(file).name
+        logger.info(f"==== {label}: {filename} {file_data.file_type}")
+        if file_data.file_type == "text/plain":
+            text = file_data.data.decode()
+            self.messages.append(
+                {
+                    "role": "user",
+                    "content": f"==== {label}: {filename} ====\n\n{text}",
+                }
+            )
+        else:
+            base64_data = base64.b64encode(file_data.data).decode()
+            self.messages.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": f"==== {label}: {filename} ===="},
+                        {
+                            "type": "image_url",
+                            "image_url": f"data:{file_data.file_type};base64,{base64_data}",
+                        },
+                    ],
+                }
+            )
+            self.has_image = True
