@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "scaf-code"
-version = "0.3.0"
+version = "0.3.1"
 description = "scaf_code is a tool for generating code from reference and specification files by Large Language Models."
 authors = ["Ken Morishita <mokemokechicken@gmail.com>"]
 readme = "README.md"

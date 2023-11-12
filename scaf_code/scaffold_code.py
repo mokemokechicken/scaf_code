@@ -105,6 +105,7 @@ def scaffold_code(
         elif finish_reason == "length":
             chat.messages.append({"role": "assistant", "content": res0.message.content})
             logger.info("Continuing conversation")
+            logger.debug(res0.message.content)
         else:
             logger.error("Unexpected finish reason: %s", finish_reason)
             logger.error("response: %s", response)
