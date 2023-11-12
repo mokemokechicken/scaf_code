@@ -14,6 +14,8 @@ ex1) specify reference and specification text
 ex2) specify reference and specification files
     scaf_code --ref ref_code_file ref_base_spec_file --spec-file spec_file --out out_file_path
 
+ex3) refine code
+    scaf_code --refine refine_file --spec spec_text --ref ref_code_file
 """
 from __future__ import annotations
 
@@ -57,7 +59,7 @@ def parse_args(args: list[str]) -> argparse.Namespace:
         "--out",
         dest="out",
         type=Path,
-        required=True,
+        required=False,
         help="Output file.",
     )
     parser.add_argument(
@@ -82,7 +84,20 @@ def parse_args(args: list[str]) -> argparse.Namespace:
         type=Path,
         help="path to system prompt file.",
     )
-
+    # --refine
+    parser.add_argument(
+        "--refine",
+        dest="refine",
+        type=Path,
+        help="Refine file.",
+    )
+    # --no-backup
+    parser.add_argument(
+        "--no-backup",
+        dest="no_backup",
+        action="store_true",
+        help="Do not backup to .bak file when --refine is specified.",
+    )
     # --version
     parser.add_argument(
         "--version",
@@ -108,6 +123,7 @@ def _main(args: list[str]) -> bool:
     logging.info(f"spec: {args.spec}")
     logging.info(f"spec_file: {args.spec_file}")
     logging.info(f"out: {args.out}")
+    logging.info(f"refine: {args.refine}")
     if args.model_name:
         logging.info(f"model_name: {args.model_name}")
     if args.system_prompt:
@@ -123,6 +139,16 @@ def _main(args: list[str]) -> bool:
         print("Please specify either --ref or --spec or --spec-file")
         return False
 
+    # check if out or refine are set
+    if not args.out and not args.refine:
+        print("Please specify either --out or --refine")
+        return False
+
+    # check if out and refine are set
+    if args.out and args.refine:
+        print("Please specify either --out or --refine")
+        return False
+
     options = {}
     if args.model_name:
         options["model_name"] = args.model_name
@@ -131,25 +157,43 @@ def _main(args: list[str]) -> bool:
         logging.debug("Reading system prompt from %s", args.system_prompt)
         options["system_prompt"] = args.system_prompt.read_text()
 
+    # Handle --refine option
+    if args.refine:
+        if args.ref:
+            args.ref = [args.refine] + args.ref
+        else:
+            args.ref = [args.refine]
+        args.out = args.refine
+        options["refine_mode"] = True
+        if args.no_backup:
+            options["no_backup"] = True
+
     # Compare this snippet from scaf_code/scaffold_code.py:
     content = scaffold_code(args.spec, args.spec_file, args.ref, options)
     if not content:
         return False
     else:
-        output_to_file(args.out, content)
+        backup = options.get("refine_mode", False) and not options.get("no_backup", False)
+        output_to_file(args.out, content, backup=backup)
         return True
 
 
-def output_to_file(file: str | Path, content: str) -> None:
+def output_to_file(file: str | Path, content: str, backup: bool = False) -> None:
     """Output to file.
 
     Args:
         file: File.
         content: Content.
+        backup: Backup.
+
+    if backup is True, backup file to file.bak
     """
     file_path = Path(file)
     try:
         file_path.parent.mkdir(parents=True, exist_ok=True)
+        if backup and file_path.exists():
+            # rename xxx.py to xxx.py.bak
+            file_path.rename(file_path.with_suffix(file_path.suffix + ".bak"))
         with open(file, "wt") as f:
             f.write(content)
     except Exception as e:

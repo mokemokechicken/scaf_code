@@ -8,6 +8,7 @@ license = "MIT"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
+black = "^21.9b0"
 
 [project.urls]
 source = "https://github.com/mokemokechicken/scaf_code"
@@ -25,3 +26,6 @@ scaf_code = "scaf_code.cli:main"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 120

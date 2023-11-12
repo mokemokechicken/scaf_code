@@ -13,9 +13,19 @@ logger = getLogger(__name__)
 
 
 DEFAULT_SYSTEM_PROMPT = """
-- You are a software developer. You are given a set of reference files and specification files. Your task is to generate code that satisfies the specification.
-- Output the complete program code. Your output will be saved as a file. Therefore, never add any extra comments or code fences.
-- Never omit it. If the maximum number of tokens is exceeded, the rest of the sequence will be called, so do not worry about it and write them in order from the beginning without omission.
+- You are a software developer. 
+- You are given a set of reference files and specification files. Your task is to generate code or text that satisfies the specification.
+- Output the full content. Not only the changed part. Not Omitting any part.
+- Never add any extra comments. 
+- Never code fence.
+""".strip()
+
+SYSTEM_PROMPT_FOR_REFINE = """
+- You are a software developer.
+- You are given the Refine Target. Your task is to refine the Refine Target.
+- Output the full content. Not only the changed part.
+- Never add any extra comments.
+- Never code fence.
 """.strip()
 
 
@@ -38,6 +48,7 @@ def scaffold_code(
         options: Options.
             model_name: Model name (default: gpt-4-1106-preview).
             system_prompt: System prompt (default: DEFAULT_SYSTEM_PROMPT).
+            refine_mode: Refine mode (default: False).
 
     Returns: Scaffolded code.
     """
@@ -50,7 +61,7 @@ def scaffold_code(
     #
     spec_data_from_files: dict[str, FileData] = load_files(spec_files)
     ref_data: dict[str, FileData] = load_files(ref_files)  # file_name -> FileData
-    chat = create_inputs(spec_texts, ref_data, spec_data_from_files)
+    chat = create_inputs(spec_texts, ref_data, spec_data_from_files, options)
     if not chat.messages:
         logger.error("No input")
         return None
@@ -63,8 +74,9 @@ def scaffold_code(
     )
     max_tokens = None
     if chat.has_image:
+        # When using GPT4Vision, if not specified max_tokens, it will generate very short text...?
         max_tokens = 4096
-    system_prompt = options.get("system_prompt") or DEFAULT_SYSTEM_PROMPT
+    system_prompt = _system_prompt(options)
 
     logger.info(f"model_name: {model_name}")
 
@@ -101,6 +113,25 @@ def scaffold_code(
     return content
 
 
+def _system_prompt(options: dict) -> str:
+    """Get system prompt.
+
+    Args:
+        options: Options.
+            system_prompt: System prompt.
+            refine_mode: Refine mode.
+
+    Returns:
+        System prompt.
+    """
+    if "system_prompt" in options:
+        return options["system_prompt"]
+    elif "refine_mode" in options and options["refine_mode"]:
+        return SYSTEM_PROMPT_FOR_REFINE
+    else:
+        return DEFAULT_SYSTEM_PROMPT
+
+
 class OpenAIWrapper:
     def __init__(self):
         self.client = OpenAI()
@@ -120,12 +151,14 @@ def create_inputs(
     spec_texts: list[str] | None,
     ref_data: dict[str, FileData],
     spec_data_from_files: dict[str, FileData],
+    options: dict = None,
 ) -> ChatMessages:
     """create messages for chat.completions.create
 
     :param spec_texts:
     :param ref_data: file_name -> FileData
     :param spec_data_from_files: file_name -> FileData
+    :param options:
     :return: list of messages: {"role": "user", "content": "..."}
     """
     chat = ChatMessages()
@@ -136,8 +169,11 @@ def create_inputs(
     for file, file_data in spec_data_from_files.items():
         chat.add_message(file, file_data, "Instruction")
 
-    for ref_file, file_data in ref_data.items():
-        chat.add_message(ref_file, file_data, "Reference")
+    for idx, (ref_file, file_data) in enumerate(ref_data.items()):
+        if options.get("refine_mode") and idx == 0:
+            chat.add_message(ref_file, file_data, "Refine Target")
+        else:
+            chat.add_message(ref_file, file_data, "Reference")
     return chat
 
 

@@ -48,8 +48,6 @@ scaf_code --refine <refine_file> --ref <ref_file>... --spec "<spec_text>"
 
 The `--refine` option allows you to improve or modify existing code. When using this option, scaf_code will take the provided file and apply the changes specified in the specification text. This is particularly useful for optimizing code, fixing bugs, or adding new features.
 
-When refining code, you can use the `--no-backup` option to prevent scaf_code from creating a backup of the original file. This is useful if you are confident in the changes being made and do not require a backup.
-
 ### Options
 
 - `--ref`: One or more reference files. Images are supported with `.jpg`, `.png`, `.gif`, and `.webp` extensions.
@@ -57,7 +55,6 @@ When refining code, you can use the `--no-backup` option to prevent scaf_code fr
 - `--spec-file`: A file containing the specification text.
 - `--out`: The path to the output file where the generated code will be saved.
 - `--refine`: The file to be refined. This option is used to refine existing code.
-- `--no-backup`: Do not create a backup of the original file when using the `--refine` option.
 
 ## Examples
 
@@ -83,12 +80,6 @@ To refine an existing Python script with additional specifications:
 
 ```bash
 scaf_code --refine existing_script.py --ref additional_context.py --spec "optimize the existing function for better performance"
-```
-
-To refine the script without creating a backup file:
-
-```bash
-scaf_code --refine existing_script.py --ref additional_context.py --spec "optimize the existing function for better performance" --no-backup
 ```
 
 ## Contributing
