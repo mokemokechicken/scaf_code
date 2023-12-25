@@ -223,7 +223,7 @@ class ChatMessages:
     has_image: bool = False
 
     def add_message(self, file: str | Path, file_data: FileData, label: str):
-        filename = Path(file).name
+        filename = str(file)
         logger.info(f"==== {label}: {filename} {file_data.file_type}")
         if file_data.file_type == "text/plain":
             text = file_data.data.decode()

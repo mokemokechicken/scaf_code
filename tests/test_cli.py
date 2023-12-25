@@ -63,6 +63,7 @@ def test_main_success(mock_scaffold_code, mock_parse_args):
         log_level="INFO",
         model_name="gpt-4-1106-preview",
         system_prompt=None,
+        refine=False,
     )
     mock_scaffold_code.return_value = "generated code"
     with patch("builtins.open", mock_open()) as mock_file:
@@ -82,6 +83,7 @@ def test_main_no_ref_spec_spec_file(mock_parse_args):
         log_level="INFO",
         model_name="gpt-4-1106-preview",
         system_prompt=None,
+        refine=False,
     )
     assert _main([]) is False
 
@@ -97,6 +99,7 @@ def test_main_missing_api_key(mock_parse_args):
         log_level="INFO",
         model_name="gpt-4-1106-preview",
         system_prompt=None,
+        refine=False,
     )
     with pytest.raises(EnvironmentError) as e:
         _main([])
